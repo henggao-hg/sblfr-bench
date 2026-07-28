@@ -1,16 +1,15 @@
 # SBLFR-Chem
 
 **Simulation-Bound Lab Fault Recovery for chemistry labs.** An LLM agent proposes typed lab
-actions inside a simulated wet-lab. A fault is injected inside the environment (not as text),
+actions inside a simulated wet-lab. A fault is injected inside the environment itself,
 and a deterministic verifier gates every action before it commits. The benchmark measures
 whether the agent recovers the target preparation, and separately whether it stays safe, under
-under- and over-delivery, mislabelled stocks, wrong-species reagents, and miscalibrated
-instruments.
+under- and over-delivery, mislabelled stocks, and miscalibrated instruments.
 
-The research question is not "can agents recover" but "where do multi-agent or prompting gains
-actually come from". Every architecture (self-consistency, best-of-N, critic review,
-heterogeneous teams) is compared against a single agent on the same information, so any gain is
-attributable to injected information or to sampling compute rather than to adding agents.
+The research question is where multi-agent or prompting gains actually come from. Every
+architecture (self-consistency, best-of-N, critic review, heterogeneous teams) is compared
+against a single agent on the same information, so a measured gain can be traced to its actual
+source, injected information, sampling compute, or the added agents themselves.
 
 Theory anchor: LLM-Modulo (Kambhampati et al., ICML 2024), the propose-then-verify loop where a
 sound external checker gates a fallible generator.
