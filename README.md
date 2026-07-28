@@ -1,4 +1,4 @@
-# SBLFR-Chem (bench_v3)
+# SBLFR-Chem
 
 **Simulation-Bound Lab Fault Recovery for chemistry labs.** An LLM agent proposes typed lab
 actions inside a simulated wet-lab. A fault is injected inside the environment (not as text),
@@ -37,8 +37,7 @@ sound external checker gates a fallible generator.
   single_personaB. These wrap the frozen code without editing it, to decompose where a gain
   comes from.
 
-The frozen specification is `bench_v3/SPEC.md`. The module map and build order are in
-`bench_v3/README.md`.
+The frozen specification is `bench_v3/SPEC.md`.
 
 ## Repository layout
 
@@ -63,8 +62,8 @@ figures/           architecture figure
 ```
 
 The three files at the repository root (`core.py`, `api_clients.py`, `config.py`) are reused by
-`bench_v3` unchanged. Keeping them one level above `bench_v3/` is what lets the benchmark import
-them without any edit to the benchmark code.
+the benchmark package unchanged. Keeping them one level above `bench_v3/` is what lets the
+benchmark import them without any edit to the benchmark code.
 
 ## Quickstart
 
