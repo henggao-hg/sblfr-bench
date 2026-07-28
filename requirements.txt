@@ -1,0 +1,5 @@
+# Runtime dependencies for running the benchmark against live models.
+# Analysis of the shipped results/ needs only matplotlib (figures) and the standard library.
+openai>=1.0
+httpx>=0.24
+matplotlib>=3.7

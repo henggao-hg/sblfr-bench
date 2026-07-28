@@ -1,0 +1,192 @@
+================================================================================
+ SBLFR-Chem: a real episode walkthrough
+ (how the Agent interacts with the Verifier and the Simulator)
+
+ Agent model : Qwen3.7-Max
+ Instance    : f2_instrument_recalibrate_00     Outcome: SUCCESS (7 steps, budget 8)
+ Source      : bench_v3/results/v3_tier1_strong_seed0.transcript.jsonl
+               (real run; every action, rationale and result below is copied
+               VERBATIM from the transcript. Nothing in Section 3 is paraphrased.
+               Where the model emitted no rationale, that is stated explicitly --
+               nothing is invented. My own commentary is confined to Section 4
+               and is labelled as such.)
+================================================================================
+
+------------------------------------------------------------------------------
+0. Three actors
+------------------------------------------------------------------------------
+
+  [Agent]      = a large language model (here, Qwen3.7-Max).
+               The only "thinking" component. Each turn it sees one "visible
+               observation", reasons in natural language, and emits exactly ONE
+               JSON action. It never sees any true underlying value of the lab,
+               and it is never told whether a fault exists or which fault it is.
+
+  [Verifier]   = a plain program (NOT an AI). The legality gate.
+               Every proposed action passes through it first: schema valid?
+               resources sufficient (non-negative volume & moles, vessel
+               capacity, available stock, not quarantined)? invariants intact?
+               Illegal -> rejected; legal -> passed through. It judges only
+               "is this allowed", never "is this wise".
+
+  [Simulator]  = another plain program (NOT an AI). The real world + ground-truth
+               ledger. It holds all hidden truths (true concentrations, true
+               volumes) and the one injected fault (here: the assay instrument
+               reads systematically low). A passed action is executed here; it
+               advances the true state and returns ONE thing to the Agent --
+               an instrument reading or a receipt -- and that reading has already
+               been corrupted by the fault.
+
+------------------------------------------------------------------------------
+1. The per-turn loop (repeated every step)
+------------------------------------------------------------------------------
+
+   Simulator emits the "visible observation" (JSON)
+        |
+        v
+   [Agent] reads obs -> reasons in NL -> proposes 1 JSON action
+        |               (may include a rationale field)
+        v
+   [Verifier] checks schema / resources / invariants
+        |                       \-- illegal --> reject, ask to retry
+        | legal
+        v
+   [Simulator] executes, updates hidden truth, returns one result (reading/receipt)
+        |
+        v
+   the action (redacted) is appended to action_log -> next observation -> next turn
+
+   Budget = 8 actions. If they run out with no closing action
+   (no accept_batch / no abort_and_handoff) the episode counts as "unmanaged".
+
+------------------------------------------------------------------------------
+2. What the Agent CAN and CANNOT see each turn
+------------------------------------------------------------------------------
+
+  Visible (the observation JSON fields):
+    - goal           target: bring X in vessel_1 to 0.4 M, tolerance +/- 0.02 M
+    - vessels        each vessel's liquid VOLUME and CAPACITY
+                     (NOT the true concentration inside)
+    - stocks         each stock's LABEL concentration + ledger volume remaining
+                     (the label is a claim, not the truth)
+    - standards      reference standards' CERTIFIED concentration (trusted anchor)
+    - instruments    an instrument exposes ONLY {what it measures, which species}
+    - initial_protocol_record   what the nominal protocol did
+    - action_log     every action so far + its returned result
+                     (eval-only fields such as the rationale are stripped out)
+    - action_budget  steps used / steps remaining
+
+  Hidden (lives only inside the Simulator and the eval transcript):
+    - any true concentration / true volume
+    - whether a fault exists, and which class of fault
+    - the instrument's real distortion (gain, bias)
+    * KEY DESIGN (Amendment G): the instrument does NOT tell the Agent whether it
+      is healthy. To learn if it is trustworthy, the Agent must measure a standard
+      whose answer is already known and infer the error from the discrepancy.
+
+------------------------------------------------------------------------------
+3. Step-by-step (VERBATIM from the transcript)
+------------------------------------------------------------------------------
+
+  Each step lists: the action proposed, the model's rationale (exact quote, or
+  "(no rationale field)"), the Verifier result, and the Simulator's returned
+  result. All values are exactly as recorded.
+
+  -- Step 1 --
+   action proposed : {"type":"measure_concentration","vessel":"vessel_1","species":"X"}
+   rationale (verbatim):
+     "The initial protocol transferred 20 mL of 2.0 M stock_X into vessel_1 and
+      diluted to 100 mL, which should yield 0.4 M. I need to verify the actual
+      concentration in vessel_1 to determine if the protocol executed correctly
+      or if a fault exists."
+   verifier : schema_ok=true, resource_ok=true, invariants_ok=true, reason="ok"
+   simulator returns : {"measured_concentration_M": 0.33361}
+
+  -- Step 2 --
+   action proposed : {"type":"measure_stock_concentration","stock":"stock_X"}
+   rationale : (no rationale field)
+   verifier : schema_ok=true, resource_ok=true, invariants_ok=true, reason="ok"
+   simulator returns : {"stock": "stock_X", "measured_concentration_M": 1.92426}
+
+  -- Step 3 --
+   action proposed : {"type":"measure_standard_concentration","standard":"std_low"}
+   rationale (verbatim):
+     "The measured concentration in vessel_1 (0.33361 M) is significantly below
+      both the target (0.4 M) and the expected value based on measured stock
+      concentration (20 mL × 1.92426 M / 100 mL = 0.38485 M). This ~13%
+      discrepancy suggests possible instrument miscalibration. Before adding more
+      stock (which risks overshooting if the instrument reads low), I should
+      measure a reference standard to assess instrument bias and enable
+      recalibration. Measuring std_low (0.1 M certified) is the first step toward
+      calibration."
+   verifier : schema_ok=true, resource_ok=true, invariants_ok=true, reason="ok"
+   simulator returns : {"standard": "std_low", "certified_concentration_M": 0.1,
+                        "measured_concentration_M": 0.02713}
+
+  -- Step 4 --
+   action proposed : {"type":"measure_standard_concentration","standard":"std_high"}
+   rationale : (no rationale field)
+   verifier : schema_ok=true, resource_ok=true, invariants_ok=true, reason="ok"
+   simulator returns : {"standard": "std_high", "certified_concentration_M": 0.8,
+                        "measured_concentration_M": 0.73133}
+
+  -- Step 5 --
+   action proposed : {"type":"recalibrate","instrument":"assay_X"}
+   rationale (verbatim):
+     "The instrument assay_X shows significant measurement bias: std_low
+      (certified 0.1 M) reads 0.02713 M and std_high (certified 0.8 M) reads
+      0.73133 M. Fitting an affine correction (measured = 1.006*true - 0.0735),
+      the vessel_1 true concentration is approximately (0.33361 + 0.0735)/1.006 ≈
+      0.405 M, which is within the 0.4 ± 0.02 M target. Recalibrating with the two
+      standards will allow a correct re-measurement to confirm."
+   verifier : schema_ok=true, resource_ok=true, invariants_ok=true, reason="ok"
+   simulator returns : {"recalibrated": "assay_X"}
+
+  -- Step 6 --
+   action proposed : {"type":"measure_concentration","vessel":"vessel_1","species":"X"}
+   rationale : (no rationale field)
+   verifier : schema_ok=true, resource_ok=true, invariants_ok=true, reason="ok"
+   simulator returns : {"measured_concentration_M": 0.39685}
+
+  -- Step 7 --
+   action proposed : {"type":"accept_batch"}
+   rationale (verbatim):
+     "After recalibration using two standards, the re-measured concentration of
+      vessel_1 is 0.39685 M, which falls within the target range of 0.4 ± 0.02 M
+      (i.e., 0.38–0.42 M). The goal is satisfied, so the correct next action is to
+      accept the batch."
+   verifier : schema_ok=true, resource_ok=true, invariants_ok=true, reason="ok"
+   simulator returns : {"acknowledged": "accept_batch"}
+
+   Episode verdict: SUCCESS.
+
+------------------------------------------------------------------------------
+4. MY commentary (this section is my interpretation, not the transcript)
+------------------------------------------------------------------------------
+
+  - The interaction is a closed loop: observation -> reasoning -> action ->
+    legality gate -> execution -> new observation. The Agent decides under
+    partial information; the truth is held by the Simulator and leaks out only
+    through (corrupted) readings.
+
+  - Neither the Verifier nor the Simulator is an AI; both are deterministic
+    programs, so the right/wrong judgment is objective and the Agent cannot see
+    the answer key.
+
+  - The injected fault here is "instrument reads low". A naive agent would believe
+    the 0.33361 reading and top up the batch -- pushing an already on-target batch
+    out of spec (our scoring calls that e_broke_good, the most severe failure).
+    In this transcript Qwen3.7-Max instead measured the batch, cross-checked
+    against the stock, diagnosed the instrument with two certified standards,
+    recalibrated, re-measured, and accepted -- never altering the batch itself.
+
+  - This is exactly the Amendment G design: the instrument will not report its own
+    health, so diagnosis requires measuring known standards. It separates models
+    that can do this from models that cannot.
+
+================================================================================
+ Appendix: the action flow at a glance (values exactly as recorded)
+   measure(vessel_1)=0.33361 -> measure(stock_X)=1.92426 ->
+   measure(std_low cert 0.1)=0.02713 -> measure(std_high cert 0.8)=0.73133 ->
+   recalibrate(assay_X) -> measure(vessel_1)=0.39685 -> accept_batch  (SUCCESS)
+================================================================================
