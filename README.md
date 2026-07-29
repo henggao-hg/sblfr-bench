@@ -54,7 +54,6 @@ bench_v3/
   prompts/         system and per-turn prompts
   runners/         dry_run, smoke, tier1 sweep drivers
   scoring/         the 4-tier ladder and secondary metrics
-  analysis/        cross-seed report, figures, decay curves
   results/         raw results (see naming below)
   tests/           unit and conformance tests
 figures/           architecture figure
@@ -69,7 +68,6 @@ benchmark import them without any edit to the benchmark code.
 ```bash
 pip install -r requirements.txt
 
-# analysis of the shipped results/ needs only matplotlib and the standard library
 python -m bench_v3.scripts.conformance_check     # spec gates, 22/22
 python -m bench_v3.runners.dry_run               # end-to-end with a fake model, no API
 ```
@@ -77,16 +75,6 @@ python -m bench_v3.runners.dry_run               # end-to-end with a fake model,
 To run against live models, put your keys in `API-keys.txt` at the repository root (one
 `provider=key` per line, or set them as environment variables). This file is gitignored and is
 never committed. Local models are served through Ollama.
-
-## Reproduce the main results
-
-The `bench_v3/results/` directory already holds every episode. The main table and the cross-seed
-statistics are recomputed from those files with no model calls:
-
-```bash
-python -m bench_v3.analysis.tier1_crossseed_report   # cross-seed main table + C1..C6
-python -m bench_v3.analysis.make_figures             # figures + main table markdown
-```
 
 ## Results naming and fields
 

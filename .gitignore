@@ -9,3 +9,6 @@ __pycache__/
 
 # Run logs
 *.out
+
+# Internal analysis (not part of the presented benchmark)
+bench_v3/analysis/
