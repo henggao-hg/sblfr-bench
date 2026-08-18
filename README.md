@@ -11,9 +11,6 @@ architecture (self-consistency, best-of-N, critic review, heterogeneous teams) i
 against a single agent on the same information, so a measured gain can be traced to its actual
 source, injected information, sampling compute, or the added agents themselves.
 
-Theory anchor: LLM-Modulo (Kambhampati et al., ICML 2024), the propose-then-verify loop where a
-sound external checker gates a fallible generator.
-
 ![Architecture](figures/architecture.png)
 
 ## What is in the benchmark
